@@ -87,9 +87,56 @@ class SMARTSnapshotDB:
 
         self.__snapshots[timestamp] = snapshot
 
+    def compare(self, younger_ss_offset=0, older_ss_offset=1):
+        warnings = False
+
+        ss_max_id = len(self.__snapshots) - 1
+        ss_keys = list(self.__snapshots.keys())
+
+        if younger_ss_offset > ss_max_id:
+            print(f'Error: younger_ss_offset is out of index.\n'
+                  f'Valid offset is up to {ss_max_id}')
+            return False
+        else:
+            yng_ss_key = ss_keys[-1-younger_ss_offset]
+
+        if older_ss_offset > ss_max_id:
+            print(f'Error: older_ss_offset is out of index.\n'
+                  f'Valid offset is up to {ss_max_id}')
+            return False
+        else:
+            old_ss_key = ss_keys[-1-older_ss_offset]
+
+        print(f'Comparing snapshots...\n'
+              f'younger snapshot: offset <{younger_ss_offset}> '
+              f'timestamp <{yng_ss_key}>\n'
+              f'older snapshot: offset <{older_ss_offset}> '
+              f'timestamp <{old_ss_key}>')
+
+        old_dev_keys = list(self.__snapshots[old_ss_key].keys())
+        yng_dev_keys = list(self.__snapshots[yng_ss_key].keys())
+        for old_dev_key in old_dev_keys:
+            if old_dev_key in yng_dev_keys:
+                # compare SMART attributes
+                yng_dev_keys.remove(old_dev_key)
+            else:
+                print(f'Warning: device <{old_dev_key}> is offline now!')
+                warnings = True
+
+        if yng_dev_keys:
+            print('Warning: new devices is online now:')
+            for key in yng_dev_keys:
+                print(f'<{key}>')
+            warnings = True
+
+        if warnings:
+            print('There were some warnings during compare!')
+            # input('Press enter to continue...')
+
 
 if __name__ == "__main__":
     ssdb = SMARTSnapshotDB()
     # ssdb.make()
     ssdb.print_(depth=2)
-    ssdb.save()
+    ssdb.compare(1, 2)
+    # ssdb.save()
