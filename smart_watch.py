@@ -22,6 +22,28 @@ import json
 import os
 
 
+def str_diff(str1, str2):
+    '''
+    Returns position of the first str1 letter different from str2
+    Otherwise returns -1
+    '''
+    str1_len = len(str1)
+    str2_len = len(str2)
+    min_len = min(str1_len, str2_len)
+
+    # find different letters in the shortest parts of strings
+    for i in range(min_len):
+        if str1[i] != str2[i]:
+            return i
+    # if the shortest string passed but no different letters found
+    # and if strings lengths are different
+    # return next letter's position
+    if str1_len != str2_len:
+        return min_len
+    # otherwise strings are equal
+    return -1
+
+
 class SMARTSnapshotDB:
     def __init__(self, db_filename='snapshots.json'):
         self.__db_filename = db_filename
@@ -30,16 +52,19 @@ class SMARTSnapshotDB:
         self.__load()
 
     def print_(self, depth=0):
-        if depth <= 3:
+        if depth == 0:
+            depth = 100
+
+        if depth >= 1:
             for ss_key in self.__snapshots.keys():
                 print(f'Timestamp: {ss_key}')
 
-                if depth <= 2:
+                if depth >= 2:
                     snapshot = self.__snapshots[ss_key]
                     for dev_key in snapshot.keys():
                         print(f'\tDevice: {dev_key}')
 
-                        if depth <= 1:
+                        if depth >= 3:
                             attributes = snapshot[dev_key]
                             for attr in attributes:
                                 print(f'\t\t{attr}')
@@ -113,16 +138,39 @@ class SMARTSnapshotDB:
               f'older snapshot: offset <{older_ss_offset}> '
               f'timestamp <{old_ss_key}>')
 
-        old_dev_keys = list(self.__snapshots[old_ss_key].keys())
         yng_dev_keys = list(self.__snapshots[yng_ss_key].keys())
+        old_dev_keys = list(self.__snapshots[old_ss_key].keys())
         for old_dev_key in old_dev_keys:
+            print(f'Examine device <{old_dev_key}>')
             if old_dev_key in yng_dev_keys:
+                print('Device found')
+                yng_dev_key = old_dev_key
+
                 # compare SMART attributes
-                yng_dev_keys.remove(old_dev_key)
+                print('Compare SMARTs...')
+                yng_smart_list = self.__snapshots[yng_ss_key][yng_dev_key]
+                old_smart_list = self.__snapshots[old_ss_key][old_dev_key]
+
+                # assume that attributes and their orders in two lists are
+                # identical and only values can differ
+                for i in range(len(old_smart_list)):
+                    diff_pos = str_diff(old_smart_list[i], yng_smart_list[i])
+                    if diff_pos != -1:
+                        print(f'Warning! '
+                              f'<{old_smart_list[i]}> becomes to '
+                              f'<{yng_smart_list[i][diff_pos:]}>')
+                        warnings = True
+
+                # remove the key from young devices keys to discover
+                # new devices
+                yng_dev_keys.remove(yng_dev_key)
             else:
+                # if older device key does not found in younger devices list,
+                # it was disconnected
                 print(f'Warning: device <{old_dev_key}> is offline now!')
                 warnings = True
 
+        # if some devices are remain, they are new devices
         if yng_dev_keys:
             print('Warning: new devices is online now:')
             for key in yng_dev_keys:
@@ -130,13 +178,20 @@ class SMARTSnapshotDB:
             warnings = True
 
         if warnings:
-            print('There were some warnings during compare!')
-            # input('Press enter to continue...')
+            print('There are some warnings during compare!')
 
 
 if __name__ == "__main__":
     ssdb = SMARTSnapshotDB()
     # ssdb.make()
-    ssdb.print_(depth=2)
-    ssdb.compare(1, 2)
+    ssdb.print_(depth=3)
+    # ssdb.compare(0, 1)
     # ssdb.save()
+
+    # str_diff() tests
+    # print(str_diff('abcdefg', 'abcdefg'))  # -1
+    # print(str_diff('abcd', 'abcdefg'))  # 4
+    # print(str_diff('abcdefg', 'abcdef'))  # 6
+    # print(str_diff('abcdefg', 'bcdefg'))  # 0
+    # print(str_diff('abcdefg', 'ab1defg'))  # 2
+    # print(str_diff('', ''))  # -1
