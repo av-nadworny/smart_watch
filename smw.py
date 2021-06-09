@@ -98,6 +98,6 @@ if __name__ == "__main__":
             print("Differences found!")
             print_report(difference)
             # waiting for user action
-            save_json(new_snapshot, SNAPSHOT_FILENAME)
             input("Press Enter to exit...")
     # save new snapshot
+    save_json(new_snapshot, SNAPSHOT_FILENAME)
