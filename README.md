@@ -27,6 +27,7 @@ Run **smw.py** script for the first time and explore the **"snapshot.json"** fil
 that just appeared for the devices names and SMART attributes IDs which you need.
 Write them to the **DEFAULT_FILTER** variable in the **smw.py** script as you can
 see in example:
+
     DEFAULT_FILTER = {
         'devices': {
             'WDC WD20EARX-00PASB0 :: WD-xxxxxxxxx523',
@@ -35,15 +36,19 @@ see in example:
             },
         'attributes': {'5', '196', '197'}
     }
+
 or you can always to use all the devices and attributes:
+
     DEFAULT_FILTER = {
         'devices': {'*'},
         'attributes': {'*'}
     }
+
 but watching all of attributes is "little" unefficient I think.
 
 Finally, you may need to autorun **smw.py** script for each start of OS or more
 often as you need.
+
 Each time the script will find any changes of the specified attributes or
 devices onlines/offlines, the script will warn you about it and wait for your
 action.
