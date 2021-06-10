@@ -7,7 +7,18 @@ from datetime import datetime
 
 SNAPSHOT_FILENAME = "snapshot.json"
 CONFIG_FILENAME = "config.json"
-DEFAULT_CONFIG = {'dev_filter': {'*'}, 'attr_filter': {'*'}}
+DEFAULT_CONFIG = {
+    'filters': {
+        'dev_filter': {'*'},
+        'attr_filter': {'*'}
+    }
+}
+DEBUG = True
+
+
+def print_debug(message):
+    if DEBUG:
+        print(f'\tdebug: {message}')
 
 
 def load_json(filename):
@@ -59,12 +70,14 @@ def make_snapshot():
     for mountpoint in mp_list:
         dev_list.append(Device(mountpoint))
 
+    # get SMART for each device
     smarts = {}
     for device in dev_list:
         device_name = f'{device.model} :: {device.serial}'
         device_smart = get_device_smart(device)
         smarts[device_name] = device_smart
 
+    # assembly and return the new snapshot
     snapshot = {}
     snapshot['timestamp'] = str(datetime.utcnow())
     snapshot['devices'] = smarts
@@ -72,32 +85,122 @@ def make_snapshot():
     return snapshot
 
 
-def compare_snapshots(last_snapshot, new_snapshot, attributes):
-    pass
+def compare_smart(last_smart, new_smart):
+    diff = {}
+    for attr in last_smart.keys():
+        last = last_smart[attr]
+        new = new_smart[attr]
+        if last['raw'] != new['raw']:
+            diff[attr] = {
+                'name': last['name'],
+                'last': last['raw'],
+                'new': new['raw']
+            }
+    return diff
 
 
-def print_report(difference):
-    pass
+def compare_snapshots(last_snapshot, new_snapshot):
+    diff = {}
+    # get filters
+    # dev_filter = filters['dev_filter']
+    # attr_filter = filters['attr_filter']
+    last_devices_set = set(last_snapshot['devices'].keys())
+    new_devices_set = set(new_snapshot['devices'].keys())
+    # compare devices sets
+    if last_devices_set != new_devices_set:
+        diff['devices'] = {}
+        # devices now offline (they are not in new snapshot, but in the last)
+        offline_devices = last_devices_set - new_devices_set
+        diff['devices']['offline'] = list(offline_devices)
+        # new devices (they are not in old snapshot, but now they are)
+        new_devices = new_devices_set - last_devices_set
+        diff['devices']['new'] = list(new_devices)
+
+    # devices to compare (last and new devices sets intersection)
+    devices = last_devices_set & new_devices_set
+    # compare SMART snapshots
+    smarts_diffs = {}
+    for dev in devices:
+        smart_diff = compare_smart(last_snapshot['devices'][dev],
+                                   new_snapshot['devices'][dev])
+        if smart_diff:
+            smarts_diffs[dev] = smart_diff
+    if smarts_diffs:
+        diff['smarts'] = smarts_diffs
+
+    return diff
+
+
+def print_report(differences):
+    devices = differences.get('devices', None)
+    smarts = differences.get('smarts', None)
+
+    # print_debug(devices)
+    if devices:
+        print('=== DEVICES SECTION ===')
+        print()
+
+        if devices.get('offline', None):
+            print(f'Devices offline: {", ".join(devices["offline"])}')
+        if devices.get('new', None):
+            print(f'New devices: {", ".join(devices["new"])}')
+
+        print()
+
+    # print_debug(smarts)
+    if smarts:
+        print('=== S.M.A.R.T. section ===')
+        print()
+        print('DEVICE')
+        print('\tID :: Name :: Last value :: New value')
+        print()
+
+        for dev in smarts.keys():
+            print(dev)
+            attrs = smarts[dev]
+            # print_debug(attrs)
+            for attr in attrs.keys():
+                values = attrs[attr]
+                print(f"\t{attr} :: {values['name']} :: {values['last']}"
+                      f" :: {values['new']}")
 
 
 if __name__ == "__main__":
-    # load config
-    config = load_json(CONFIG_FILENAME)
+    save = True  # to save the new snapshot or not by default
     # make snapshot
-    # config = {'dev_filter': {'*'}, 'attr_filter': {'*'}}
     new_snapshot = make_snapshot()
-    print(new_snapshot)
     # load last snapshot
     last_snapshot = load_json(SNAPSHOT_FILENAME)
-    # if last snapshot exists, compare two snapshots
+
+    # new_snapshot = load_json('snapshot_1.json')
+    # last_snapshot = load_json('snapshot_2.json')
+
+    # if last snapshot exists, compare it with new one
     if last_snapshot:
-        difference = compare_snapshots(last_snapshot, new_snapshot,
-                                       config['attributes'])
+        print_debug('Will compare')
+        differences = compare_snapshots(
+            last_snapshot, new_snapshot)
         # if shapshots are different, print report
-        if difference:
-            print("Differences found!")
-            print_report(difference)
+        if differences:
+            print_debug("SMART changes found")
+            print('S.M.A.R.T. changes found')
+            print()
+            print(f"Last snapshot timestamp: {last_snapshot['timestamp']}")
+            print(f" New snapshot timestamp: {new_snapshot['timestamp']}")
+            print()
+            print_report(differences)
+            print()
             # waiting for user action
-            input("Press Enter to exit...")
+            save_cmd = input("Commit SMART changes [y/N]? ")
+            if save_cmd != 'y':
+                save = False
+            else:
+                save = True
+        else:
+            print_debug('No differences')
     # save new snapshot
-    save_json(new_snapshot, SNAPSHOT_FILENAME)
+    if save:
+        print_debug('Will save')
+        save_json(new_snapshot, SNAPSHOT_FILENAME)
+    else:
+        print_debug('Will not save')
