@@ -6,13 +6,14 @@ from datetime import datetime
 
 
 SNAPSHOT_FILENAME = "snapshot.json"
-CONFIG_FILENAME = "config.json"
-DEFAULT_CONFIG = {
-    'filters': {
-        'dev_filter': {'*'},
-        'attr_filter': {'*'}
+DEFAULT_FILTER = {
+    'devices': {'*'},
+    'attributes': {'5', '196', '197'}
+    # 'devices': {'*'},
+    # 'attributes': {'*'}
     }
-}
+
+
 DEBUG = True
 
 
@@ -85,28 +86,32 @@ def make_snapshot():
     return snapshot
 
 
-def compare_smart(last_smart, new_smart):
+def compare_smart(last_smart, new_smart, filter={'*'}):
     diff = {}
     for attr in last_smart.keys():
-        last = last_smart[attr]
-        new = new_smart[attr]
-        if last['raw'] != new['raw']:
-            diff[attr] = {
-                'name': last['name'],
-                'last': last['raw'],
-                'new': new['raw']
-            }
+        # filtering attributes
+        if '*' in filter or attr in filter:
+            last = last_smart[attr]
+            new = new_smart[attr]
+            if last['raw'] != new['raw']:
+                diff[attr] = {
+                    'name': last['name'],
+                    'last': last['raw'],
+                    'new': new['raw']
+                }
     return diff
 
 
-def compare_snapshots(last_snapshot, new_snapshot):
+def compare_snapshots(last_snapshot, new_snapshot, filter=DEFAULT_FILTER):
     diff = {}
     # get filters
-    # dev_filter = filters['dev_filter']
-    # attr_filter = filters['attr_filter']
+    dev_filter = filter['devices']
+    attr_filter = filter['attributes']
+
+    # compare devices sets
     last_devices_set = set(last_snapshot['devices'].keys())
     new_devices_set = set(new_snapshot['devices'].keys())
-    # compare devices sets
+
     if last_devices_set != new_devices_set:
         diff['devices'] = {}
         # devices now offline (they are not in new snapshot, but in the last)
@@ -118,11 +123,17 @@ def compare_snapshots(last_snapshot, new_snapshot):
 
     # devices to compare (last and new devices sets intersection)
     devices = last_devices_set & new_devices_set
+
+    # filtering devices to check
+    if '*' not in dev_filter:
+        devices &= dev_filter
+
     # compare SMART snapshots
     smarts_diffs = {}
     for dev in devices:
         smart_diff = compare_smart(last_snapshot['devices'][dev],
-                                   new_snapshot['devices'][dev])
+                                   new_snapshot['devices'][dev],
+                                   attr_filter)
         if smart_diff:
             smarts_diffs[dev] = smart_diff
     if smarts_diffs:
